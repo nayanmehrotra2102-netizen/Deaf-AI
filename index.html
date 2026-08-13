@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chatbot</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a20;
+      --surface-2: #24242c;
+      --border: #2e2e38;
+      --text: #e8e8ed;
+      --text-muted: #9a9aa8;
+      --accent: #6c5ce7;
+      --accent-hover: #7f71f0;
+      --user-bg: #2d2b55;
+      --ai-bg: #1e1e26;
+      --error: #ff6b6b;
+      --success: #51cf66;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      padding: 10px 16px;
+      font-weight: 500;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      max-width: min(720px, 92%);
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--user-bg);
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.ai {
+      align-self: flex-start;
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.error {
+      align-self: center;
+      background: rgba(255, 107, 107, 0.12);
+      color: var(--error);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      font-size: 0.9rem;
+    }
+
+    .message .role {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .message.user .role {
+      text-align: right;
+    }
+
+    /* Markdown styles */
+    .message.ai .content h1,
+    .message.ai .content h2,
+    .message.ai .content h3 {
+      margin: 0.8em 0 0.4em;
+      font-weight: 600;
+    }
+
+    .message.ai .content h1 { font-size: 1.25rem; }
+    .message.ai .content h2 { font-size: 1.1rem; }
+    .message.ai .content h3 { font-size: 1rem; }
+
+    .message.ai .content p {
+      margin: 0.5em 0;
+    }
+
+    .message.ai .content ul,
+    .message.ai .content ol {
+      margin: 0.5em 0;
+      padding-left: 1.4em;
+    }
+
+    .message.ai .content li {
+      margin: 0.25em 0;
+    }
+
+    .message.ai .content code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88em;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+
+    .message.ai .content pre {
+      background: #121216;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin: 0.75em 0;
+    }
+
+    .message.ai .content pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+
+    .message.ai .content a {
+      color: #a78bfa;
+      text-decoration: none;
+    }
+
+    .message.ai .content a:hover {
+      text-decoration: underline;
+    }
+
+    .message.ai .content blockquote {
+      border-left: 3px solid var(--accent);
+      margin: 0.6em 0;
+      padding-left: 12px;
+      color: var(--text-muted);
+    }
+
+    .message.ai .content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0.6em 0;
+      font-size: 0.9rem;
+    }
+
+    .message.ai .content th,
+    .message.ai .content td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    .message.ai .content th {
+      background: var(--surface-2);
+    }
+
+    .typing {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px 0;
+    }
+
+    .typing span {
+      width: 6px;
+      height: 6px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+
+    .typing span:nth-child(2) { animation-delay: 0.15s; }
+    .typing span:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    footer {
+      padding: 12px 16px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      max-width: 800px;
+      margin: 0 auto;
+      align-items: flex-end;
+    }
+
+    #user-input {
+      flex: 1;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      padding: 12px 14px;
+      font: inherit;
+      resize: none;
+      min-height: 48px;
+      max-height: 160px;
+      line-height: 1.4;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #user-input:focus {
+      border-color: var(--accent);
+    }
+
+    #user-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .empty-state {
+      margin: auto;
+      text-align: center;
+      color: var(--text-muted);
+      padding: 40px 20px;
+    }
+
+    .empty-state h2 {
+      font-size: 1.25rem;
+      color: var(--text);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .empty-state p {
+      font-size: 0.95rem;
+      max-width: 360px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 600px) {
+      .message {
+        max-width: 95%;
+      }
+      header h1 {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Chatbot</h1>
+    <div class="actions">
+      <button class="btn-secondary" id="clear-btn" title="Clear chat">Clear</button>
+    </div>
+  </header>
+
+  <main id="chat">
+    <div class="empty-state" id="empty-state">
+      <h2>How can I help?</h2>
+      <p>Ask anything. For current or latest information, I’ll search the web automatically.</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="input-row">
+      <textarea
+        id="user-input"
+        rows="1"
+        placeholder="Message…"
+        autofocus
+      ></textarea>
+      <button class="btn-primary" id="send-btn">Send</button>
+    </div>
+    <p class="hint">OpenRouter · TinyFish Search · Streaming</p>
+  </footer>
+
+  <script>
+    // ============ CONFIG ============
+    const OPENROUTER_API_KEY = "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";
+    const OPENROUTER_MODEL = "openai/gpt-oss-20b:free";
+    const TINYFISH_API_KEY = "sk-tinyfish-4Bga_ZJkP-Ifu8i5HZVWBoWvnp5fsiUD";
+
+    // ============ STATE ============
+    const messages = []; // { role: 'user' | 'assistant', content: string }
+    let isLoading = false;
+
+    // ============ DOM ============
+    const chatEl = document.getElementById("chat");
+    const inputEl = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const clearBtn = document.getElementById("clear-btn");
+    const emptyState = document.getElementById("empty-state");
+
+    // ============ MARKED CONFIG ============
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+    });
+
+    // ============ HELPERS ============
+    function needsWebSearch(text) {
+      const lower = text.toLowerCase();
+      const triggers = [
+        "latest", "current", "today", "now", "recent", "news",
+        "what is the", "who is the", "when is", "how much is",
+        "price of", "stock", "weather", "score", "update",
+        "2024", "2025", "2026", "this year", "this month", "this week"
+      ];
+      return triggers.some(t => lower.includes(t));
+    }
+
+    function autoResize() {
+      inputEl.style.height = "auto";
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
+    }
+
+    function scrollToBottom() {
+      requestAnimationFrame(() => {
+        chatEl.scrollTop = chatEl.scrollHeight;
+      });
+    }
+
+    function setLoading(loading) {
+      isLoading = loading;
+      sendBtn.disabled = loading;
+      inputEl.disabled = loading;
+      sendBtn.textContent = loading ? "…" : "Send";
+    }
+
+    function hideEmpty() {
+      if (emptyState) emptyState.style.display = "none";
+    }
+
+    function renderMarkdown(text) {
+      const raw = marked.parse(text || "");
+      return DOMPurify.sanitize(raw);
+    }
+
+    // ============ UI RENDERING ============
+    function appendMessage(role, content, isStreaming = false) {
+      hideEmpty();
+      const div = document.createElement("div");
+      div.className = `message ${role === "user" ? "user" : "ai"}`;
+      div.dataset.role = role;
+
+      const roleLabel = document.createElement("div");
+      roleLabel.className = "role";
+      roleLabel.textContent = role === "user" ? "You" : "AI";
+
+      const contentEl = document.createElement("div");
+      contentEl.className = "content";
+
+      if (role === "user") {
+        contentEl.textContent = content;
+      } else if (isStreaming) {
+        contentEl.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+      } else {
+        contentEl.innerHTML = renderMarkdown(content);
+      }
+
+      div.appendChild(roleLabel);
+      div.appendChild(contentEl);
+      chatEl.appendChild(div);
+      scrollToBottom();
+      return div;
+    }
+
+    function updateAIMessage(div, text) {
+      const contentEl = div.querySelector(".content");
+      contentEl.innerHTML = renderMarkdown(text);
+      scrollToBottom();
+    }
+
+    function showError(msg) {
+      hideEmpty();
+      const div = document.createElement("div");
+      div.className = "message error";
+      div.textContent = msg;
+      chatEl.appendChild(div);
+      scrollToBottom();
+    }
+
+    // ============ TINYFISH SEARCH ============
+    async function searchWeb(query) {
+      const url = new URL("https://api.search.tinyfish.ai");
+      url.searchParams.set("query", query);
+      url.searchParams.set("location", "US");
+      url.searchParams.set("language", "en");
+
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          "X-API-Key": TINYFISH_API_KEY,
+        },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`TinyFish search failed (${res.status}): ${errText || res.statusText}`);
+      }
+
+      const data = await res.json();
+      const results = data.results || [];
+      if (!results.length) return "No relevant web results found.";
+
+      return results.slice(0, 6).map((r, i) => {
+        return `${i + 1}. **${r.title || "Untitled"}**\n   ${r.snippet || ""}\n   URL: ${r.url || ""}`;
+      }).join("\n\n");
+    }
+
+    // ============ OPENROUTER STREAMING ============
+    async function streamChat(apiMessages, onDelta) {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": window.location.origin || "https://localhost",
+          "X-Title": "Simple AI Chatbot",
+        },
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages: apiMessages,
+          stream: true,
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`OpenRouter error (${res.status}): ${errText || res.statusText}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(":")) continue; // SSE comments
+          if (trimmed === "data: [DONE]") continue;
+          if (!trimmed.startsWith("data: ")) continue;
+
+          try {
+            const json = JSON.parse(trimmed.slice(6));
+            const delta = json.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              onDelta(fullText);
+            }
+            if (json.error) {
+              throw new Error(json.error.message || JSON.stringify(json.error));
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue;
+            throw e;
+          }
+        }
+      }
+
+      return fullText;
+    }
+
+    // ============ MAIN SEND FLOW ============
+    async function handleSend() {
+      const text = inputEl.value.trim();
+      if (!text || isLoading) return;
+
+      inputEl.value = "";
+      autoResize();
+      setLoading(true);
+
+      // Show user message
+      messages.push({ role: "user", content: text });
+      appendMessage("user", text);
+
+      // Placeholder AI message
+      const aiDiv = appendMessage("assistant", "", true);
+      let reply = "";
+
+      try {
+        let systemContent = "You are a helpful, concise assistant. Use Markdown for formatting when useful. Prefer clear, direct answers.";
+
+        // Web search if needed
+        if (needsWebSearch(text)) {
+          try {
+            const searchResults = await searchWeb(text);
+            systemContent += `\n\nThe user asked for current/latest information. Here are fresh web search results you should use to answer accurately:\n\n${searchResults}\n\nCite sources by title or URL when relevant. If the results don't fully answer the question, say what is known and what is missing.`;
+          } catch (searchErr) {
+            console.warn("Search failed:", searchErr);
+            systemContent += "\n\n(Web search was attempted but failed. Answer with what you know and note that live search was unavailable.)";
+          }
+        }
+
+        const apiMessages = [
+          { role: "system", content: systemContent },
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+        ];
+
+        reply = await streamChat(apiMessages, (partial) => {
+          updateAIMessage(aiDiv, partial);
+        });
+
+        if (!reply) {
+          reply = "(No response generated.)";
+          updateAIMessage(aiDiv, reply);
+        }
+
+        messages.push({ role: "assistant", content: reply });
+      } catch (err) {
+        console.error(err);
+        aiDiv.remove();
+        showError(err.message || "Something went wrong. Please try again.");
+      } finally {
+        setLoading(false);
+        inputEl.focus();
+      }
+    }
+
+    // ============ EVENTS ============
+    sendBtn.addEventListener("click", handleSend);
+
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+
+    inputEl.addEventListener("input", autoResize);
+
+    clearBtn.addEventListener("click", () => {
+      if (isLoading) return;
+      messages.length = 0;
+      chatEl.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.id = "empty-state";
+      empty.innerHTML = `<h2>How can I help?</h2><p>Ask anything. For current or latest information, I’ll search the web automatically.</p>`;
+      chatEl.appendChild(empty);
+      inputEl.focus();
+    });
+
+    // Initial focus
+    inputEl.focus();
+  </script>
+</body>
+</html>
